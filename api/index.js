@@ -1,5 +1,5 @@
 const express = require('express');
-const { GoogleGenAI } = require('@google/genai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const app = express();
 
@@ -53,7 +53,7 @@ app.get('/', (req, res) => {
           const reader = new FileReader();
           reader.onload = function(evt) {
             const dataUrl = evt.target.result;
-            selectedMimeType = file.type;
+            selectedMimeType = file.type || 'image/jpeg';
             selectedBase64 = dataUrl.split(',')[1];
           };
           reader.readAsDataURL(file);
@@ -99,24 +99,24 @@ app.post('/api/process-invoice', async (req, res) => {
       return res.status(400).json({ error: 'No image data provided.' });
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [
-        {
-          inlineData: {
-            data: imageBase64,
-            mimeType: mimeType || 'image/jpeg'
-          }
-        },
-        "Extract the items from this vendor invoice for a Goods Receipt Note (GRN). Return JSON with fields: vendor_name, invoice_number, invoice_date, and items array (containing item_description, quantity, rate, total_amount)."
-      ]
-    });
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          data: imageBase64,
+          mimeType: mimeType || 'image/jpeg'
+        }
+      },
+      "Extract the items from this vendor invoice for a Goods Receipt Note (GRN). Return JSON with fields: vendor_name, invoice_number, invoice_date, and items array (containing item_description, quantity, rate, total_amount)."
+    ]);
+
+    const responseText = result.response.text();
 
     res.status(200).json({
       success: true,
-      data: response.text
+      data: responseText
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
